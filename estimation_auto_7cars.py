@@ -3,6 +3,13 @@ import streamlit as st
 import pandas as pd
 import io
 from datetime import datetime
+from PIL import Image
+def afficher_logo():
+    try:
+        logo = Image.open("logo_7cars.PNG")
+        st.image(logo, width=180)
+    except:
+        pass
 
 # --- CONSTANTES CONFIGURABLES ---
 MARGE_NETTE = 0.15   # 15% de gain net souhaité
@@ -119,6 +126,8 @@ def main():
     )
 
     injecter_css()
+afficher_logo()
+st.markdown("")
 
     # --- ENTÊTE / BRANDING ---
     col_logo, col_titre = st.columns([0.25, 0.75])
