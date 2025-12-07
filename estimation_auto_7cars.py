@@ -1,13 +1,17 @@
 import streamlit as st
 import pandas as pd
 import io
+import os
 from datetime import datetime
-from fpdf import FPDF
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
 
 # --- CONSTANTES CONFIGURABLES ---
 MARGE_NETTE = 0.15   # 15% de gain net souhaité
 FRAIS_FIXES = 350    # Frais de dossier fixes
 TVA_TAUX = 0.081     # TVA 8.1% (Suisse)
+
+HISTO_FICHIER = "historique_estimations.csv"
 
 
 def format_chf(val):
@@ -58,99 +62,6 @@ def generer_excel_estimation(
     marque, modele, annee, km, prix_vente, frais_remise,
     type_tva, prix_achat, marge_voulue, tva_etat, couts
 ):
-   def generer_pdf_estimation(
-    marque, modele, annee, km, prix_vente, frais_remise,
-    type_tva, prix_achat, marge_voulue, tva_etat, couts
-):
-    """Génère un PDF récapitulatif de l'estimation."""
-    now = datetime.now().strftime("%d.%m.%Y %H:%M")
-
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-
-    # Logo en haut à gauche
-    try:
-        pdf.image("logo_7cars.PNG", x=10, y=8, w=40)
-    except Exception:
-        pass
-
-    pdf.set_font("Helvetica", "B", 14)
-    pdf.cell(0, 10, "Estimation professionnelle de reprise", ln=1, align="R")
-    pdf.set_font("Helvetica", "", 10)
-    pdf.cell(0, 6, "7 Cars Garage Sàrl – Liebistorf", ln=1, align="R")
-    pdf.ln(10)
-
-    # Infos générales
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 7, "1. Données véhicule", ln=1)
-    pdf.set_font("Helvetica", "", 10)
-    pdf.cell(0, 6, f"Date de l'estimation : {now}", ln=1)
-    pdf.cell(0, 6, f"Véhicule : {marque} {modele}", ln=1)
-    pdf.cell(0, 6, f"Année : {annee}", ln=1)
-    pdf.cell(0, 6, f"Kilométrage : {km:,} km".replace(",", "'"), ln=1)
-    pdf.ln(4)
-
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 7, "2. Hypothèses de revente", ln=1)
-    pdf.set_font("Helvetica", "", 10)
-    pdf.cell(0, 6, f"Prix de revente estimé : {format_chf(prix_vente)}", ln=1)
-    pdf.cell(0, 6, f"Frais remise en état : {format_chf(frais_remise)}", ln=1)
-    pdf.cell(0, 6, f"Origine TVA : {type_tva}", ln=1)
-    pdf.ln(4)
-
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 7, "3. Résultat financier", ln=1)
-    pdf.set_font("Helvetica", "", 10)
-    pdf.cell(0, 6, f"Offre d'achat maximale : {format_chf(prix_achat)}", ln=1)
-    pdf.cell(0, 6, f"Marge nette visée : {format_chf(marge_voulue)}", ln=1)
-    pdf.cell(0, 6, f"TVA à reverser : {format_chf(tva_etat)}", ln=1)
-    pdf.cell(0, 6, f"Frais fixes + sécurité : {format_chf(couts)}", ln=1)
-    pdf.ln(6)
-
-    pdf.set_font("Helvetica", "I", 9)
-    pdf.multi_cell(
-        0, 5,
-        "Cette offre maximale est la limite à ne pas dépasser à l'achat afin de rester "
-        "aligné avec un positionnement qualitatif sans recourir aux remises."
-    )
-
-    # Retourne le PDF en mémoire
-    pdf_bytes = pdf.output(dest="S").encode("latin-1")
-    return io.BytesIO(pdf_bytes)
- HISTO_CSV = "historique_estimations.csv"
-
-
-def enregistrer_historique(
-    marque, modele, annee, km, prix_vente, frais_remise,
-    type_tva, prix_achat, marge_voulue, tva_etat, couts
-):
-    """Ajoute l'estimation à un fichier CSV local."""
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    ligne = {
-        "Date estimation": now,
-        "Marque": marque,
-        "Modèle": modele,
-        "Année": annee,
-        "Kilométrage": km,
-        "Prix revente": prix_vente,
-        "Frais remise": frais_remise,
-        "Type TVA": type_tva,
-        "Prix achat max": prix_achat,
-        "Marge nette": marge_voulue,
-        "TVA": tva_etat,
-        "Frais totaux": couts,
-    }
-
-    try:
-        df_exist = pd.read_csv(HISTO_CSV)
-    except FileNotFoundError:
-        df_exist = pd.DataFrame()
-
-    df_nouveau = pd.concat([df_exist, pd.DataFrame([ligne])], ignore_index=True)
-    df_nouveau.to_csv(HISTO_CSV, index=False)
-
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
 
     data = {
@@ -177,8 +88,118 @@ def enregistrer_historique(
     return fichier
 
 
+def generer_pdf_estimation(
+    marque, modele, annee, km, prix_vente, frais_remise,
+    type_tva, prix_achat, marge_voulue, tva_etat, couts
+):
+    """Génère un PDF propre de l'estimation et renvoie un BytesIO."""
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    x_margin = 40
+    y = height - 50
+
+    now = datetime.now().strftime("%d.%m.%Y %H:%M")
+
+    # En-tête
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(x_margin, y, "7 CARS GARAGE SÀRL – LIEBISTORF")
+    y -= 25
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(x_margin, y, "Estimation professionnelle de reprise")
+    y -= 25
+
+    c.setFont("Helvetica", 10)
+    c.drawString(x_margin, y, f"Date de l'estimation : {now}")
+    y -= 30
+
+    # Infos véhicule
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(x_margin, y, "1. Données véhicule")
+    y -= 18
+    c.setFont("Helvetica", 10)
+    c.drawString(x_margin, y, f"Marque / Modèle : {marque} {modele}")
+    y -= 14
+    c.drawString(x_margin, y, f"Année : {int(annee)}")
+    y -= 14
+    c.drawString(x_margin, y, f"Kilométrage : {int(km):,} km".replace(",", "'"))
+    y -= 25
+
+    # Hypothèses
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(x_margin, y, "2. Hypothèses de revente")
+    y -= 18
+    c.setFont("Helvetica", 10)
+    c.drawString(x_margin, y, f"Prix de revente estimé : {format_chf(prix_vente)}")
+    y -= 14
+    c.drawString(x_margin, y, f"Frais remise en état : {format_chf(frais_remise)}")
+    y -= 14
+    c.drawString(x_margin, y, f"Origine TVA : {type_tva}")
+    y -= 25
+
+    # Résultat
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(x_margin, y, "3. Résultat d'estimation")
+    y -= 18
+    c.setFont("Helvetica", 10)
+    c.drawString(x_margin, y, f"Offre d'achat maximale : {format_chf(prix_achat)}")
+    y -= 14
+    c.drawString(x_margin, y, f"Marge visée (net en poche) : {format_chf(marge_voulue)}")
+    y -= 14
+    c.drawString(x_margin, y, f"TVA à reverser : {format_chf(tva_etat)}")
+    y -= 14
+    c.drawString(x_margin, y, f"Frais fixes + sécurité : {format_chf(couts)}")
+    y -= 25
+
+    c.setFont("Helvetica-Oblique", 9)
+    c.drawString(
+        x_margin,
+        y,
+        "Cette estimation est un outil interne pour garantir un positionnement haut de gamme, sans remises.",
+    )
+
+    c.showPage()
+    c.save()
+    buffer.seek(0)
+    return buffer
+
+
+def ajouter_a_historique(
+    marque, modele, annee, km, prix_vente, frais_remise,
+    type_tva, prix_achat, marge_voulue, tva_etat, couts
+):
+    """Ajoute l'estimation à un fichier CSV local."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    ligne = {
+        "Date": now,
+        "Marque": marque,
+        "Modèle": modele,
+        "Année": int(annee),
+        "Kilométrage": int(km),
+        "Origine TVA": type_tva,
+        "Prix revente": prix_vente,
+        "Frais remise": frais_remise,
+        "Frais fixes + sécurité": couts,
+        "Marge visée": marge_voulue,
+        "TVA à reverser": tva_etat,
+        "Offre max achat": prix_achat,
+    }
+
+    df = pd.DataFrame([ligne])
+    existe = os.path.exists(HISTO_FICHIER)
+    df.to_csv(
+        HISTO_FICHIER,
+        mode="a",
+        header=not existe,
+        index=False,
+        encoding="utf-8-sig",
+    )
+
+
 def injecter_css():
-    """CSS pour un look plus haut de gamme."""
+    """CSS premium."""
     st.markdown(
         """
         <style>
@@ -186,17 +207,11 @@ def injecter_css():
             background: radial-gradient(circle at top left, #202020, #080808);
             color: #f5f5f5;
         }
-        h1, h2, h3 {
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-        }
         .bloc-carte {
             border-radius: 14px;
             padding: 1.2rem 1.4rem;
             border: 1px solid rgba(255, 255, 255, 0.08);
             background: linear-gradient(145deg, rgba(20,20,20,0.96), rgba(12,12,12,0.94));
-        }
-        [data-testid="stMetricValue"] {
-            font-size: 1.4rem;
         }
         </style>
         """,
@@ -205,6 +220,7 @@ def injecter_css():
 
 
 def main():
+
     st.set_page_config(
         page_title="Estimation reprise – 7 Cars Garage",
         page_icon="🚗",
@@ -217,7 +233,6 @@ def main():
     col_logo, col_titre = st.columns([0.25, 0.75])
 
     with col_logo:
-        # Affiche le logo qui est dans le dépôt sous le nom "logo_7cars.PNG"
         st.image("logo_7cars.PNG", use_container_width=True)
 
     with col_titre:
@@ -228,10 +243,6 @@ def main():
             unsafe_allow_html=True,
         )
         st.markdown("## Estimation professionnelle de reprise")
-        st.caption(
-            "Outil interne pour calculer une offre d’achat cohérente avec un positionnement haut de gamme, "
-            "sans recours aux remises ni rabais."
-        )
 
     st.markdown("")
 
@@ -240,12 +251,12 @@ def main():
 
     with col1:
         st.markdown('<div class="bloc-carte">', unsafe_allow_html=True)
-        st.markdown("### 1. Données véhicule")
 
+        st.markdown("### 1. Données véhicule")
         marque = st.text_input("Marque", value="Audi")
         modele = st.text_input("Modèle", value="A3")
-        annee = st.number_input("Année", min_value=1980, max_value=2100, value=2019, step=1)
-        km = st.number_input("Kilométrage (km)", min_value=0, max_value=500_000, value=80_000, step=500)
+        annee = st.number_input("Année", 1980, 2100, 2019)
+        km = st.number_input("Kilométrage (km)", 0, 500000, 80000)
 
         if marque and modele and annee:
             lien = construire_lien_autoscout(marque, modele, int(annee), int(km))
@@ -253,25 +264,14 @@ def main():
             st.link_button("🔎 Ouvrir la recherche AutoScout24", lien)
 
         st.markdown("---")
+
         st.markdown("### 2. Hypothèses de revente")
-
-        prix_vente = st.number_input(
-            "Prix de revente estimé (CHF)",
-            min_value=0.0,
-            value=22000.0,
-            step=500.0,
-        )
-
-        frais_remise = st.number_input(
-            "Frais de remise en état (CHF)",
-            min_value=0.0,
-            value=1500.0,
-            step=100.0,
-        )
+        prix_vente = st.number_input("Prix de revente estimé (CHF)", 0.0, value=22000.0, step=500.0)
+        frais_remise = st.number_input("Frais de remise en état (CHF)", 0.0, value=1500.0, step=100.0)
 
         type_tva = st.radio(
             "Origine du véhicule / traitement TVA",
-            options=[
+            [
                 "TVA sur marge (achat à un particulier)",
                 "TVA standard (achat à un garage/entreprise)",
             ],
@@ -285,9 +285,12 @@ def main():
         st.markdown('<div class="bloc-carte">', unsafe_allow_html=True)
         st.markdown("### 3. Résultat estimation")
 
+        estimation_ok = False
+
         if calculer:
             if prix_vente <= 0:
                 st.error("Le prix de revente estimé doit être supérieur à 0.")
+
             else:
                 prix_achat, marge_voulue, tva_etat, info_tva, couts = calcul_offre_max(
                     prix_vente, frais_remise, type_tva
@@ -295,10 +298,11 @@ def main():
 
                 if prix_achat <= 0:
                     st.warning(
-                        "Avec ces paramètres, le prix d'achat ressort négatif ou nul.\n\n"
-                        "➡ Revois soit la marge, soit le prix de revente estimé, soit les frais."
+                        "Offre d'achat négative ou nulle. Ajuste la marge ou le prix."
                     )
                 else:
+                    estimation_ok = True
+
                     st.markdown(
                         f"""
                         <div style="border-radius:18px;padding:1.3rem 1.5rem;
@@ -324,46 +328,64 @@ def main():
 
                     with colR1:
                         st.metric("Prix de revente prévu", format_chf(prix_vente))
-                        st.metric("Marge visée (net en poche)", format_chf(marge_voulue))
+                        st.metric("Marge visée (net)", format_chf(marge_voulue))
 
                     with colR2:
                         st.metric(f"TVA à reverser ({info_tva})", format_chf(tva_etat))
                         st.metric("Frais fixes + sécurité", format_chf(couts))
 
-                    st.markdown("---")
-                    st.markdown(
-                        "- Cette **offre max** est la limite à ne pas dépasser à l'achat pour rester "
-                        "aligné avec un positionnement qualitatif.\n"
-                        "- Aucune remise n’est appliquée au client final : la valeur perçue reste haute, "
-                        "la marge est protégée."
+                    # Stocker résultats pour les téléchargements
+                    valeurs_calculees = (
+                        prix_achat, marge_voulue, tva_etat, info_tva, couts
                     )
 
-                    fichier_excel = generer_excel_estimation(
-                        marque=marque,
-                        modele=modele,
-                        annee=int(annee),
-                        km=int(km),
-                        prix_vente=prix_vente,
-                        frais_remise=frais_remise,
-                        type_tva=type_tva,
-                        prix_achat=prix_achat,
-                        marge_voulue=marge_voulue,
-                        tva_etat=tva_etat,
-                        couts=couts,
-                    )
-
-                    nom_fichier = f"estimation_{marque}_{modele}_{int(annee)}.xlsx".replace(" ", "_")
-
-                    st.download_button(
-                        label="📥 Télécharger l’estimation (Excel)",
-                        data=fichier_excel,
-                        file_name=nom_fichier,
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    )
         else:
-            st.info("Renseigne les informations à gauche puis clique sur **« Calculer l'offre d'achat maximale »**.")
+            st.info("Remplis les champs à gauche puis clique sur « Calculer ».")
+
+        # Téléchargements
+        if estimation_ok:
+            prix_achat, marge_voulue, tva_etat, info_tva, couts = valeurs_calculees
+
+            nom_base = f"estimation_{marque}_{modele}_{int(annee)}".replace(" ", "_")
+
+            # Excel
+            fichier_excel = generer_excel_estimation(
+                marque, modele, annee, km, prix_vente, frais_remise,
+                type_tva, prix_achat, marge_voulue, tva_etat, couts
+            )
+            st.download_button(
+                "📥 Télécharger l’estimation (Excel)",
+                fichier_excel,
+                file_name=nom_base + ".xlsx",
+            )
+
+            # PDF
+            fichier_pdf = generer_pdf_estimation(
+                marque, modele, annee, km, prix_vente, frais_remise,
+                type_tva, prix_achat, marge_voulue, tva_etat, couts
+            )
+            st.download_button(
+                "📄 Télécharger l’estimation (PDF)",
+                fichier_pdf,
+                file_name=nom_base + ".pdf",
+            )
+
+            # Historique
+            ajouter_a_historique(
+                marque, modele, annee, km, prix_vente, frais_remise,
+                type_tva, prix_achat, marge_voulue, tva_etat, couts
+            )
 
         st.markdown("</div>", unsafe_allow_html=True)
+
+    # --- 4. HISTORIQUE DES ESTIMATIONS ---
+    st.markdown("### 4. Historique des estimations")
+
+    if os.path.exists(HISTO_FICHIER):
+        df_histo = pd.read_csv(HISTO_FICHIER)
+        st.dataframe(df_histo, use_container_width=True)
+    else:
+        st.caption("Aucune estimation enregistrée pour le moment.")
 
 
 if __name__ == "__main__":
