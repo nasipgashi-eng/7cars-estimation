@@ -58,6 +58,67 @@ def generer_excel_estimation(
     marque, modele, annee, km, prix_vente, frais_remise,
     type_tva, prix_achat, marge_voulue, tva_etat, couts
 ):
+   def generer_pdf_estimation(
+    marque, modele, annee, km, prix_vente, frais_remise,
+    type_tva, prix_achat, marge_voulue, tva_etat, couts
+):
+    """Génère un PDF récapitulatif de l'estimation."""
+    now = datetime.now().strftime("%d.%m.%Y %H:%M")
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    # Logo en haut à gauche
+    try:
+        pdf.image("logo_7cars.PNG", x=10, y=8, w=40)
+    except Exception:
+        pass
+
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.cell(0, 10, "Estimation professionnelle de reprise", ln=1, align="R")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 6, "7 Cars Garage Sàrl – Liebistorf", ln=1, align="R")
+    pdf.ln(10)
+
+    # Infos générales
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 7, "1. Données véhicule", ln=1)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 6, f"Date de l'estimation : {now}", ln=1)
+    pdf.cell(0, 6, f"Véhicule : {marque} {modele}", ln=1)
+    pdf.cell(0, 6, f"Année : {annee}", ln=1)
+    pdf.cell(0, 6, f"Kilométrage : {km:,} km".replace(",", "'"), ln=1)
+    pdf.ln(4)
+
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 7, "2. Hypothèses de revente", ln=1)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 6, f"Prix de revente estimé : {format_chf(prix_vente)}", ln=1)
+    pdf.cell(0, 6, f"Frais remise en état : {format_chf(frais_remise)}", ln=1)
+    pdf.cell(0, 6, f"Origine TVA : {type_tva}", ln=1)
+    pdf.ln(4)
+
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 7, "3. Résultat financier", ln=1)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 6, f"Offre d'achat maximale : {format_chf(prix_achat)}", ln=1)
+    pdf.cell(0, 6, f"Marge nette visée : {format_chf(marge_voulue)}", ln=1)
+    pdf.cell(0, 6, f"TVA à reverser : {format_chf(tva_etat)}", ln=1)
+    pdf.cell(0, 6, f"Frais fixes + sécurité : {format_chf(couts)}", ln=1)
+    pdf.ln(6)
+
+    pdf.set_font("Helvetica", "I", 9)
+    pdf.multi_cell(
+        0, 5,
+        "Cette offre maximale est la limite à ne pas dépasser à l'achat afin de rester "
+        "aligné avec un positionnement qualitatif sans recourir aux remises."
+    )
+
+    # Retourne le PDF en mémoire
+    pdf_bytes = pdf.output(dest="S").encode("latin-1")
+    return io.BytesIO(pdf_bytes)
+ 
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
 
     data = {
