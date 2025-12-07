@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 from datetime import datetime
+from fpdf import FPDF
 
 # --- CONSTANTES CONFIGURABLES ---
 MARGE_NETTE = 0.15   # 15% de gain net souhaité
