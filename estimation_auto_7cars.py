@@ -135,7 +135,7 @@ st.markdown("")
 
     with col_logo:
         try:
-            st.image("logo_7cars.png", use_container_width=True)
+            st.image("logo_7cars.PNG", use_container_width=True)
         except Exception:
             st.write("")
 
