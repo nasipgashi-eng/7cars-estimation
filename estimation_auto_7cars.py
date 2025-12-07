@@ -118,7 +118,39 @@ def generer_excel_estimation(
     # Retourne le PDF en mémoire
     pdf_bytes = pdf.output(dest="S").encode("latin-1")
     return io.BytesIO(pdf_bytes)
- 
+ HISTO_CSV = "historique_estimations.csv"
+
+
+def enregistrer_historique(
+    marque, modele, annee, km, prix_vente, frais_remise,
+    type_tva, prix_achat, marge_voulue, tva_etat, couts
+):
+    """Ajoute l'estimation à un fichier CSV local."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    ligne = {
+        "Date estimation": now,
+        "Marque": marque,
+        "Modèle": modele,
+        "Année": annee,
+        "Kilométrage": km,
+        "Prix revente": prix_vente,
+        "Frais remise": frais_remise,
+        "Type TVA": type_tva,
+        "Prix achat max": prix_achat,
+        "Marge nette": marge_voulue,
+        "TVA": tva_etat,
+        "Frais totaux": couts,
+    }
+
+    try:
+        df_exist = pd.read_csv(HISTO_CSV)
+    except FileNotFoundError:
+        df_exist = pd.DataFrame()
+
+    df_nouveau = pd.concat([df_exist, pd.DataFrame([ligne])], ignore_index=True)
+    df_nouveau.to_csv(HISTO_CSV, index=False)
+
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
 
     data = {
